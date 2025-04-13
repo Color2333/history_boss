@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Body
 from fastapi.middleware.cors import CORSMiddleware
 import sqlite3
 import json
@@ -7,10 +7,14 @@ import os
 import httpx
 import traceback
 from pydantic_settings import BaseSettings
+from pydantic import BaseModel
 
 class Settings(BaseSettings):
     OPENAI_API_KEY: str = "sk-q9H8wqyhhHxcut658fFfE242Db5b4071B653E5Af3e61FfE3"
     OPENAI_API_BASE: str = "https://api.oaipro.com"
+
+class ContentSaveRequest(BaseModel):
+    content: str
 
 settings = Settings()
 
@@ -27,6 +31,7 @@ app.add_middleware(
 
 # 数据库文件路径
 DB_PATH = "data/data.db"
+BOSS_DB_PATH = "data/boss.db"
 
 # API 配置
 OAIPRO_API_BASE = "https://api.oaipro.com"
@@ -45,6 +50,8 @@ async_client = httpx.AsyncClient(
 # 检查数据库文件是否存在
 if not os.path.exists(DB_PATH):
     raise Exception(f"数据库文件不存在: {DB_PATH}")
+if not os.path.exists(BOSS_DB_PATH):
+    raise Exception(f"BOSS数据库文件不存在: {BOSS_DB_PATH}")
 
 def get_db_connection():
     """创建数据库连接并设置返回行为为字典"""
@@ -52,28 +59,126 @@ def get_db_connection():
     conn.row_factory = sqlite3.Row
     return conn
 
-# 确保 AI_GENERATED_CONTENT 表存在
-def init_ai_content_table():
-    conn = get_db_connection()
+def get_boss_db_connection():
+    """创建BOSS数据库连接并设置返回行为为字典"""
+    conn = sqlite3.connect(BOSS_DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+# 确保 AI 内容表存在
+def init_ai_content_tables():
+    conn = get_boss_db_connection()
     try:
+        # 创建AI生成记录表
         conn.execute("""
-        CREATE TABLE IF NOT EXISTS AI_GENERATED_CONTENT (
+        CREATE TABLE IF NOT EXISTS ai_content_generations (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             person_id INTEGER NOT NULL,
-            content_type TEXT NOT NULL,
-            content TEXT NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            content_type VARCHAR(20) NOT NULL,
+            prompt TEXT NOT NULL,
+            model_version VARCHAR(50) NOT NULL,
+            parameters JSON,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
         """)
+        
+        # 创建AI传记表
+        conn.execute("""
+        CREATE TABLE IF NOT EXISTS ai_biographies (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            person_id INTEGER NOT NULL,
+            generation_id INTEGER NOT NULL,
+            content TEXT NOT NULL,
+            version INTEGER NOT NULL,
+            status VARCHAR(20) NOT NULL DEFAULT 'draft',
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            published_at TIMESTAMP,
+            view_count INTEGER DEFAULT 0,
+            FOREIGN KEY (generation_id) REFERENCES ai_content_generations(id)
+        )
+        """)
+        
+        # 创建AI简历表
+        conn.execute("""
+        CREATE TABLE IF NOT EXISTS ai_resumes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            person_id INTEGER NOT NULL,
+            generation_id INTEGER NOT NULL,
+            template_id INTEGER NOT NULL,
+            content JSON NOT NULL,
+            version INTEGER NOT NULL,
+            status VARCHAR(20) NOT NULL DEFAULT 'draft',
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            published_at TIMESTAMP,
+            view_count INTEGER DEFAULT 0,
+            FOREIGN KEY (generation_id) REFERENCES ai_content_generations(id)
+        )
+        """)
+        
+        # 创建简历模板表
+        conn.execute("""
+        CREATE TABLE IF NOT EXISTS resume_templates (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name VARCHAR(100) NOT NULL,
+            description TEXT,
+            structure JSON NOT NULL,
+            style_config JSON,
+            is_active BOOLEAN DEFAULT true,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+        """)
+        
+        # 插入默认简历模板（如果不存在）
+        conn.execute("""
+        INSERT OR IGNORE INTO resume_templates (id, name, description, structure, style_config)
+        VALUES (
+            1,
+            '现代简约模板',
+            '简洁现代的简历模板，适合展示历史人物的生平事迹',
+            '{
+                "sections": [
+                    {
+                        "id": "basic_info",
+                        "title": "基本信息",
+                        "type": "text"
+                    },
+                    {
+                        "id": "life_events",
+                        "title": "生平大事",
+                        "type": "timeline"
+                    },
+                    {
+                        "id": "achievements",
+                        "title": "主要成就",
+                        "type": "list"
+                    },
+                    {
+                        "id": "historical_impact",
+                        "title": "历史影响",
+                        "type": "text"
+                    }
+                ]
+            }',
+            '{
+                "theme": "modern",
+                "layout": "single-column",
+                "typography": {
+                    "font_family": "system-ui",
+                    "heading_size": "large",
+                    "text_size": "medium"
+                }
+            }'
+        )
+        """)
+        
         conn.commit()
     except Exception as e:
-        print(f"Error initializing AI_GENERATED_CONTENT table: {e}")
+        print(f"Error initializing AI content tables: {e}")
     finally:
         conn.close()
 
 # 初始化表
-init_ai_content_table()
+init_ai_content_tables()
 
 def init_db():
     """初始化数据库表"""
@@ -507,123 +612,160 @@ def get_person_activities(person_id: int):
 
 @app.get("/api/person/{person_id}/ai-content")
 def get_person_ai_content(person_id: int, content_type: str = Query(..., description="内容类型: 'biography' 或 'resume'")):
-    """获取历史人物的 AI 生成内容"""
+    """获取历史人物的AI生成内容"""
     try:
-        conn = get_db_connection()
-        query = """
-        SELECT content
-        FROM AI_GENERATED_CONTENT
-        WHERE person_id = ? AND content_type = ?
-        ORDER BY updated_at DESC
-        LIMIT 1
-        """
+        conn = get_boss_db_connection()
         
-        row = conn.execute(query, (person_id, content_type)).fetchone()
-        conn.close()
-        
-        if not row:
-            raise HTTPException(status_code=404, detail=f"未找到ID为{person_id}的人物的{content_type}内容")
+        # 根据内容类型从相应表获取最新版本的已发布内容
+        if content_type == 'biography':
+            result = conn.execute("""
+                SELECT b.content, b.version, b.status
+                FROM ai_biographies b
+                WHERE b.person_id = ? AND b.status = 'published'
+                ORDER BY b.version DESC
+                LIMIT 1
+            """, (person_id,)).fetchone()
+        else:  # resume
+            result = conn.execute("""
+                SELECT r.content, r.version, r.status
+                FROM ai_resumes r
+                WHERE r.person_id = ? AND r.status = 'published'
+                ORDER BY r.version DESC
+                LIMIT 1
+            """, (person_id,)).fetchone()
             
-        return {"content": row["content"]}
-    
+        if not result:
+            return {"content": "", "version": 0, "status": "not_found"}
+            
+        return {
+            "content": result['content'],
+            "version": result['version'],
+            "status": result['status']
+        }
+        
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"查询失败: {str(e)}")
+        print(f"获取AI内容时出错: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"获取AI内容时出错: {str(e)}")
+    finally:
+        conn.close()
 
 def build_prompt(person: dict, content_type: str) -> str:
     """
     构建AI提示词
-    :param person: 人物信息字典
+    :param person: 人物信息
     :param content_type: 内容类型 ('biography' 或 'resume')
-    :return: 构建好的提示词
+    :return: 提示词
     """
-    # 基本信息
     basic_info = person.get('basic_info', {})
-    basic_info_text = f"""
-姓名：{basic_info.get('name_chn', '未知')}
-朝代：{basic_info.get('dynasty', '未知')}
-生卒年：{basic_info.get('birth_year', '未知')} - {basic_info.get('death_year', '未知')}
-"""
-
-    # 主要经历
-    offices = person.get('offices', [])
-    office_text = "\n主要经历：\n"
-    if offices:
-        for office in offices:
-            office_text += f"- {office.get('first_year', '')} {office.get('office_name', '')}\n"
-    else:
-        office_text += "暂无记录\n"
-
-    # 成就
-    achievements = person.get('achievements', [])
-    achievement_text = "\n主要成就：\n"
-    if achievements:
-        for achievement in achievements:
-            achievement_text += f"- {achievement}\n"
-    else:
-        achievement_text += "暂无记录\n"
-
-    # 考试记录
-    entries = person.get('entries', [])
-    entry_text = "\n考试记录：\n"
-    if entries:
-        for entry in entries:
-            entry_text += f"- {entry.get('year', '')} {entry.get('entry_desc', '')}\n"
-    else:
-        entry_text += "暂无记录\n"
-
-    # 社会地位
-    statuses = person.get('statuses', [])
-    status_text = "\n社会地位：\n"
-    if statuses:
-        for status in statuses:
-            status_text += f"- {status.get('status_desc', '')}\n"
-    else:
-        status_text += "暂无记录\n"
-
-    # 相关文本
-    texts = person.get('texts', [])
-    text_text = "\n相关文本：\n"
-    if texts:
-        for text in texts:
-            text_text += f"- {text.get('title', '')}: {text.get('content', '')[:100]}...\n"
-    else:
-        text_text += "暂无记录\n"
-
-    # 根据内容类型构建不同的提示词
+    name = basic_info.get('name_chn', '')
+    dynasty = basic_info.get('dynasty', '')
+    birth_year = basic_info.get('birth_year', '')
+    death_year = basic_info.get('death_year', '')
+    gender = basic_info.get('gender', '')
+    
+    # 获取生平事件
+    events = []
+    for event in person.get('events', []):
+        year = event.get('year', '')
+        desc = event.get('event_desc', '')
+        if year and desc:
+            events.append(f"{year}年：{desc}")
+    
+    # 获取社会关系
+    relationships = []
+    for rel in person.get('social_relations', []):
+        rel_type = rel.get('relation_type', '')
+        rel_name = rel.get('name_chn', '')
+        if rel_type and rel_name:
+            relationships.append(f"{rel_type}：{rel_name}")
+    
+    # 获取著作
+    works = []
+    for text in person.get('texts', []):
+        title = text.get('title', '')
+        if title:
+            works.append(title)
+    
     if content_type == 'biography':
-        return f"""请根据以下历史人物的信息，撰写一篇简短的传记。要求：
-1. 语言精炼，重点突出
-2. 突出人物的性格特点和重要事迹
-3. 结合历史背景进行分析
-4. 适当引用史料佐证
-5. 字数严格控制在200字以内
+        return f"""请为以下历史人物撰写一篇简短的传记（不超过200字）：
 
-{basic_info_text}
-{office_text}
-{achievement_text}
-{entry_text}
-{status_text}
-{text_text}
-"""
+姓名：{name}
+朝代：{dynasty}
+生卒年：{birth_year}-{death_year}
+性别：{gender}
 
-    elif content_type == 'resume':
-        return f"""请根据以下历史人物的信息，撰写一份简短的现代简历。要求：
-1. 采用现代简历格式
-2. 突出关键成就和能力
-3. 使用现代职场语言
-4. 包含教育背景、工作经历、主要成就等部分
-5. 字数严格控制在200字以内
+生平事件：
+{chr(10).join(events)}
 
-{basic_info_text}
-{office_text}
-{achievement_text}
-{entry_text}
-{status_text}
-{text_text}
-"""
+社会关系：
+{chr(10).join(relationships)}
 
-    else:
-        raise ValueError(f"不支持的内容类型: {content_type}")
+著作：
+{chr(10).join(works)}
+
+要求：
+1. 使用现代白话文
+2. 突出重要事迹和贡献
+3. 语言简洁流畅
+4. 避免使用过于口语化的表达
+5. 保持客观中立的语气
+6. 不要使用HTML标签
+7. 使用半角标点符号
+8. 每个段落之间用换行符分隔"""
+    else:  # resume
+        return f"""请为以下历史人物制作一份现代简历，以JSON格式返回（不超过200字）：
+
+姓名：{name}
+朝代：{dynasty}
+生卒年：{birth_year}-{death_year}
+性别：{gender}
+
+生平事件：
+{chr(10).join(events)}
+
+社会关系：
+{chr(10).join(relationships)}
+
+著作：
+{chr(10).join(works)}
+
+要求：
+1. 返回格式必须是合法的JSON
+2. JSON结构如下：
+{{
+    "basic_info": {{
+        "name": "姓名",
+        "dynasty": "朝代",
+        "birth_death": "生卒年",
+        "gender": "性别"
+    }},
+    "education": [
+        {{
+            "year": "年份",
+            "type": "教育类型",
+            "description": "详细描述"
+        }}
+    ],
+    "work_experience": [
+        {{
+            "period": "时间段",
+            "position": "职位",
+            "description": "工作内容"
+        }}
+    ],
+    "achievements": [
+        "成就1",
+        "成就2"
+    ],
+    "skills": [
+        "技能1",
+        "技能2"
+    ]
+}}
+3. 使用现代职业术语
+4. 突出管理能力和领导才能
+5. 语言简洁专业
+6. 确保JSON格式正确，可以被解析"""
 
 def save_ai_content(person_id: str, content_type: str, content: str) -> None:
     """保存AI生成的内容到数据库"""
@@ -748,113 +890,209 @@ async def generate_person_ai_content(
     content_type: str = Query(..., description="内容类型: 'biography' 或 'resume'"),
     force_regenerate: bool = Query(False, description="是否强制重新生成")
 ):
-    """生成历史人物的 AI 内容"""
-    conn = None
+    """生成历史人物的AI内容"""
     try:
-        conn = get_db_connection()
-        
-        # 检查是否已存在内容且不需要重新生成
-        if not force_regenerate:
-            existing = conn.execute(
-                "SELECT content FROM AI_GENERATED_CONTENT WHERE person_id = ? AND content_type = ? ORDER BY updated_at DESC LIMIT 1",
-                (person_id, content_type)
-            ).fetchone()
-            
-            if existing:
-                return {"content": existing["content"]}
-        
         # 获取人物信息
-        person_data = get_person_by_id(person_id)
-        if not person_data:
+        person = get_person_by_id(person_id)
+        if not person:
             raise HTTPException(status_code=404, detail=f"未找到ID为{person_id}的人物")
         
-        # 使用 AI 生成内容
-        generated_content = await generate_ai_content(person_id, content_type)
+        # 构建提示词
+        prompt = build_prompt(person, content_type)
         
-        # 保存生成的内容到数据库
-        conn.execute(
-            """
-            INSERT INTO AI_GENERATED_CONTENT (person_id, content_type, content)
-            VALUES (?, ?, ?)
-            """,
-            (person_id, content_type, generated_content["content"])
-        )
-        conn.commit()
+        # 调用AI API
+        content = await call_ai_api(prompt)
         
-        return generated_content
-    
-    except Exception as e:
-        print(f"Error in generate_person_ai_content: {str(e)}")
-        if conn:
-            conn.rollback()
-        raise HTTPException(status_code=500, detail=f"生成内容失败: {str(e)}")
-    finally:
-        if conn:
-            conn.close()
-
-@app.post("/api/admin/save-to-boss-db")
-def save_to_boss_db(
-    person_id: int = Query(..., description="人物ID"),
-    content_type: str = Query(..., description="内容类型: 'biography' 或 'resume'"),
-    content: str = Query(..., description="内容")
-):
-    """将AI生成的内容保存到boss.db数据库"""
-    try:
-        # 连接到boss.db数据库
-        boss_db_path = "data/boss.db"
-        
-        # 检查数据库文件是否存在，如果不存在则创建
-        if not os.path.exists(boss_db_path):
-            conn = sqlite3.connect(boss_db_path)
-            conn.execute("""
-            CREATE TABLE IF NOT EXISTS AI_GENERATED_CONTENT (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                person_id INTEGER NOT NULL,
-                content_type TEXT NOT NULL,
-                content TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-            """)
+        # 保存生成记录
+        conn = get_boss_db_connection()
+        try:
+            # 插入生成记录
+            cursor = conn.execute("""
+                INSERT INTO ai_content_generations 
+                (person_id, content_type, prompt, model_version, parameters)
+                VALUES (?, ?, ?, ?, ?)
+            """, (
+                person_id,
+                content_type,
+                prompt,
+                "gpt-4",  # 当前使用的模型版本
+                json.dumps({"temperature": 0.7})
+            ))
+            generation_id = cursor.lastrowid
+            
+            # 根据内容类型保存到相应表
+            if content_type == 'biography':
+                conn.execute("""
+                    INSERT INTO ai_biographies 
+                    (person_id, generation_id, content, version, status)
+                    VALUES (?, ?, ?, 1, 'draft')
+                """, (person_id, generation_id, content))
+            else:  # resume
+                conn.execute("""
+                    INSERT INTO ai_resumes 
+                    (person_id, generation_id, template_id, content, version, status)
+                    VALUES (?, ?, 1, ?, 1, 'draft')
+                """, (person_id, generation_id, json.dumps({"content": content})))
+            
             conn.commit()
+            
+            return {
+                "content": content,
+                "generation_id": generation_id
+            }
+            
+        except Exception as e:
+            conn.rollback()
+            print(f"保存AI内容时出错: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"保存AI内容时出错: {str(e)}")
+        finally:
             conn.close()
-        
-        # 连接到boss.db数据库
-        conn = sqlite3.connect(boss_db_path)
-        
-        # 检查是否已存在内容
-        existing = conn.execute(
-            "SELECT id FROM AI_GENERATED_CONTENT WHERE person_id = ? AND content_type = ?",
-            (person_id, content_type)
-        ).fetchone()
-        
-        if existing:
-            # 更新现有内容
-            conn.execute(
-                """
-                UPDATE AI_GENERATED_CONTENT 
-                SET content = ?, updated_at = CURRENT_TIMESTAMP
-                WHERE person_id = ? AND content_type = ?
-                """,
-                (content, person_id, content_type)
-            )
-        else:
-            # 插入新内容
-            conn.execute(
-                """
-                INSERT INTO AI_GENERATED_CONTENT (person_id, content_type, content)
-                VALUES (?, ?, ?)
-                """,
-                (person_id, content_type, content)
-            )
-        
-        conn.commit()
-        conn.close()
-        
-        return {"message": "内容已成功保存到boss.db数据库"}
-    
+            
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"保存到boss.db失败: {str(e)}")
+        print(f"生成AI内容时出错: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"生成AI内容时出错: {str(e)}")
+
+@app.post("/api/person/{person_id}/ai-content/save")
+def save_to_boss_db(
+    person_id: int,
+    content_type: str = Query(..., description="内容类型: 'biography' 或 'resume'"),
+    request: ContentSaveRequest = Body(...)
+):
+    """保存AI内容到BOSS数据库"""
+    try:
+        conn = get_boss_db_connection()
+        cursor = conn.cursor()
+        
+        # 更新内容状态为已发布
+        if content_type == 'biography':
+            # 获取最新的草稿版本
+            draft = cursor.execute("""
+                SELECT id, version FROM ai_biographies
+                WHERE person_id = ? AND status = 'draft'
+                ORDER BY version DESC LIMIT 1
+            """, (person_id,)).fetchone()
+            
+            if draft:
+                cursor.execute("""
+                    UPDATE ai_biographies
+                    SET content = ?, status = 'published', published_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                """, (request.content, draft['id']))
+            else:
+                # 如果没有草稿，创建新记录
+                cursor.execute("""
+                    INSERT INTO ai_biographies 
+                    (person_id, generation_id, content, version, status, published_at)
+                    VALUES (?, 
+                        (SELECT id FROM ai_content_generations 
+                         WHERE person_id = ? AND content_type = 'biography' 
+                         ORDER BY created_at DESC LIMIT 1),
+                        ?, 1, 'published', CURRENT_TIMESTAMP)
+                """, (person_id, person_id, request.content))
+        else:  # resume
+            # 获取最新的草稿版本
+            draft = cursor.execute("""
+                SELECT id, version FROM ai_resumes
+                WHERE person_id = ? AND status = 'draft'
+                ORDER BY version DESC LIMIT 1
+            """, (person_id,)).fetchone()
+            
+            if draft:
+                cursor.execute("""
+                    UPDATE ai_resumes
+                    SET content = ?, status = 'published', published_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                """, (json.dumps({"content": request.content}), draft['id']))
+            else:
+                # 如果没有草稿，创建新记录
+                cursor.execute("""
+                    INSERT INTO ai_resumes 
+                    (person_id, generation_id, template_id, content, version, status, published_at)
+                    VALUES (?, 
+                        (SELECT id FROM ai_content_generations 
+                         WHERE person_id = ? AND content_type = 'resume' 
+                         ORDER BY created_at DESC LIMIT 1),
+                        1, ?, 1, 'published', CURRENT_TIMESTAMP)
+                """, (person_id, person_id, json.dumps({"content": request.content})))
+            
+        conn.commit()
+        return {"message": "内容保存成功"}
+        
+    except Exception as e:
+        print(f"保存到BOSS数据库时出错: {str(e)}")
+        traceback.print_exc()  # 打印详细的错误堆栈
+        raise HTTPException(status_code=500, detail=f"保存到BOSS数据库时出错: {str(e)}")
+    finally:
+        conn.close()
+
+async def call_ai_api(prompt: str) -> str:
+    """
+    调用AI API生成内容
+    :param prompt: 提示词
+    :return: 生成的内容
+    """
+    try:
+        response = await async_client.post(
+            "/v1/chat/completions",
+            json={
+                "model": "gpt-4",
+                "messages": [
+                    {"role": "system", "content": "你是一个专业的历史人物传记和现代简历撰写专家。"},
+                    {"role": "user", "content": prompt}
+                ],
+                "max_tokens": 500,  # 限制token数量以确保输出简短
+                "temperature": 0.7
+            }
+        )
+        response.raise_for_status()
+        result = response.json()
+
+        # 检查响应
+        if not result.get("choices"):
+            raise ValueError("AI API返回的响应格式不正确")
+
+        content = result["choices"][0]["message"]["content"].strip()
+        if not content:
+            raise ValueError("AI生成的内容为空")
+
+        return content
+
+    except httpx.HTTPStatusError as e:
+        print(f"AI API HTTP错误: {str(e)}")
+        print(f"响应状态码: {e.response.status_code}")
+        print(f"响应内容: {e.response.text}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"AI API调用失败: HTTP {e.response.status_code}"
+        )
+
+    except httpx.RequestError as e:
+        print(f"AI API请求错误: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"AI API请求失败: {str(e)}"
+        )
+
+    except json.JSONDecodeError as e:
+        print(f"AI API响应解析错误: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="AI API响应格式错误"
+        )
+
+    except ValueError as e:
+        print(f"AI内容生成错误: {str(e)}")
+        raise HTTPException(
+            status_code=400,
+            detail=str(e)
+        )
+
+    except Exception as e:
+        print(f"AI内容生成时发生未知错误: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"生成失败: {str(e)}"
+        )
 
 if __name__ == "__main__":
     import uvicorn

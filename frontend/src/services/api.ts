@@ -42,7 +42,11 @@ export const api = {
   },
 
   // 获取 AI 生成的内容
-  async getPersonAiContent(personId: number, contentType: 'biography' | 'resume'): Promise<{ content: string }> {
+  async getPersonAiContent(personId: number, contentType: 'biography' | 'resume'): Promise<{ 
+    content: string;
+    version: number;
+    status: string;
+  }> {
     console.log(`Fetching ${contentType} for person ID:`, personId);
     const response = await axios.get(`/api/person/${personId}/ai-content`, {
       params: { content_type: contentType }
@@ -56,7 +60,10 @@ export const api = {
     personId: number, 
     contentType: 'biography' | 'resume',
     forceRegenerate: boolean = false
-  ): Promise<{ content: string }> {
+  ): Promise<{ 
+    content: string;
+    generation_id: number;
+  }> {
     console.log(`Generating ${contentType} for person ID:`, personId);
     const response = await axios.post(`/api/person/${personId}/ai-content`, null, {
       params: { 
@@ -75,8 +82,7 @@ export const api = {
     content: string
   ): Promise<void> {
     console.log(`Saving ${contentType} to boss DB for person ID:`, personId);
-    const response = await axios.post(`/api/person/${personId}/ai-content/save`, {
-      content_type: contentType,
+    const response = await axios.post(`/api/person/${personId}/ai-content/save?content_type=${contentType}`, {
       content: content
     });
     console.log(`Save to boss DB response:`, response.data);
