@@ -1,24 +1,36 @@
 import React, { useState } from 'react';
-import { Layout, Menu, Typography, Button } from 'antd';
+import { Layout, Menu, Typography, Button, Input, Form, Card, message, Alert, Space } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import {
   DashboardOutlined,
   UserOutlined,
   LogoutOutlined,
   RobotOutlined,
+  SearchOutlined,
 } from '@ant-design/icons';
-import { AiContentGenerator } from '../components/AiContentGenerator';
 
 const { Header, Content, Sider } = Layout;
-const { Title } = Typography;
+const { Title, Paragraph } = Typography;
 
 export const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
   const [selectedMenu, setSelectedMenu] = useState('dashboard');
+  const [form] = Form.useForm();
 
   const handleLogout = () => {
     localStorage.removeItem('adminAuthenticated');
     navigate('/admin');
+  };
+
+  // 处理AI内容生成页面的跳转
+  const handleAiContentNavigation = (values: { personId: string }) => {
+    const personId = values.personId.trim();
+    if (!personId) {
+      message.error('请输入有效的人物ID');
+      return;
+    }
+    // 导航到AI内容生成页面
+    navigate(`/admin/ai-content/${personId}`);
   };
 
   const renderContent = () => {
@@ -38,7 +50,44 @@ export const AdminDashboard: React.FC = () => {
           </>
         );
       case 'ai-content':
-        return <AiContentGenerator />;
+        return (
+          <>
+            <Title level={4}>AI内容生成</Title>
+            <Paragraph>请输入历史人物ID，系统将为您生成AI内容。</Paragraph>
+            
+            <Card style={{ marginBottom: 16 }}>
+              <Form form={form} onFinish={handleAiContentNavigation} layout="inline">
+                <Form.Item
+                  name="personId"
+                  rules={[{ required: true, message: '请输入人物ID' }]}
+                >
+                  <Input placeholder="输入人物ID" style={{ width: 200 }} />
+                </Form.Item>
+                <Form.Item>
+                  <Button type="primary" htmlType="submit" icon={<SearchOutlined />}>
+                    查看/生成AI内容
+                  </Button>
+                </Form.Item>
+              </Form>
+            </Card>
+            
+            <Alert
+              message="操作指南"
+              description="输入人物ID后，系统将导航到对应人物的AI内容生成页面，您可以查看已有内容或生成新的AI内容。"
+              type="info"
+              showIcon
+            />
+            
+            <Space style={{ marginTop: 24 }}>
+              <Button 
+                type="primary" 
+                onClick={() => navigate('/admin/ai-content/34')}
+              >
+                查看示例(ID: 34)
+              </Button>
+            </Space>
+          </>
+        );
       default:
         return null;
     }
@@ -97,4 +146,4 @@ export const AdminDashboard: React.FC = () => {
       </Layout>
     </Layout>
   );
-}; 
+};

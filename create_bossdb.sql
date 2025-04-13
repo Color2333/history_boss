@@ -85,39 +85,72 @@ CREATE TABLE IF NOT EXISTS search_history (
 
 -- 插入默认简历模板
 INSERT INTO resume_templates (name, description, structure, style_config) VALUES (
-    '现代简约模板',
-    '简洁现代的简历模板，适合展示历史人物的生平事迹',
+    '现代职场精英模板',
+    '将历史人物转化为现代职场精英的趣味简历模板',
     '{
         "sections": [
             {
-                "id": "basic_info",
-                "title": "基本信息",
-                "type": "text"
+                "id": "modern_title",
+                "title": "现代职位",
+                "type": "text",
+                "description": "将历史身份转化为现代职位（如：皇帝→CEO）"
             },
             {
-                "id": "life_events",
-                "title": "生平大事",
-                "type": "timeline"
+                "id": "personal_branding",
+                "title": "个人品牌",
+                "type": "text",
+                "description": "现代职业身份下的个人品牌定位"
             },
             {
-                "id": "achievements",
-                "title": "主要成就",
-                "type": "list"
+                "id": "core_competencies",
+                "title": "核心能力",
+                "type": "list",
+                "description": "将历史成就转化为现代职场技能"
             },
             {
-                "id": "historical_impact",
-                "title": "历史影响",
-                "type": "text"
+                "id": "career_highlights",
+                "title": "职业亮点",
+                "type": "timeline",
+                "description": "重要历史事件转化为职场成就"
+            },
+            {
+                "id": "modern_achievements",
+                "title": "现代成就",
+                "type": "list",
+                "description": "历史成就的现代诠释"
+            },
+            {
+                "id": "leadership_style",
+                "title": "领导风格",
+                "type": "text",
+                "description": "现代管理风格的描述"
+            },
+            {
+                "id": "personal_interests",
+                "title": "个人兴趣",
+                "type": "text",
+                "description": "历史特征的现代趣味转化"
+            },
+            {
+                "id": "easter_eggs",
+                "title": "特别备注",
+                "type": "text",
+                "description": "历史梗的现代职场诠释"
             }
         ]
     }',
     '{
-        "theme": "modern",
+        "theme": "modern-elite",
         "layout": "single-column",
         "typography": {
             "font_family": "system-ui",
             "heading_size": "large",
             "text_size": "medium"
+        },
+        "style_elements": {
+            "modern_icons": true,
+            "easter_egg_highlight": true,
+            "professional_tone": true
         }
     }'
 );

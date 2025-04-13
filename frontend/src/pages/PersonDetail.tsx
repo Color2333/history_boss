@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Card, Descriptions, Button, Spin, message, Tabs, Table, Tag, Typography, Layout } from 'antd';
+import { Layout, Typography, Card, Table, Button, Spin, message, Descriptions, Tag, Tabs, Alert } from 'antd';
 import { ArrowLeftOutlined, TeamOutlined, EnvironmentOutlined } from '@ant-design/icons';
-import { Person } from '../types';
 import { api } from '../services/api';
+import { Person } from '../types';
+import { ResumeRenderer } from '../components/ResumeRenderer';
 
 const { Content } = Layout;
-const { Title } = Typography;
+const { Title, Paragraph } = Typography;
 
 interface TabConfig {
   key: string;
@@ -16,28 +17,170 @@ interface TabConfig {
   visible: boolean;
 }
 
+interface ResumeData {
+  modern_title: {
+    position: string;
+    company: string;
+    industry: string;
+  };
+  personal_branding: {
+    tagline: string;
+    summary: string;
+  };
+  core_competencies: Array<{
+    skill: string;
+    description: string;
+  }>;
+  career_highlights: Array<{
+    period: string;
+    title: string;
+    company: string;
+    achievement: string;
+    easter_egg?: string;
+  }>;
+  modern_achievements: Array<{
+    title: string;
+    description: string;
+    impact: string;
+  }>;
+  leadership_style: {
+    style: string;
+    approach: string;
+    philosophy: string;
+  };
+  personal_interests: Array<{
+    interest: string;
+    description: string;
+  }>;
+  easter_eggs: Array<{
+    type: string;
+    content: string;
+    icon: string;
+  }>;
+}
+
 export const PersonDetail: React.FC = () => {
   const { personId } = useParams<{ personId: string }>();
   const navigate = useNavigate();
   const [person, setPerson] = useState<Person | null>(null);
   const [loading, setLoading] = useState(true);
+  const [biography, setBiography] = useState<string | null>(null);
+  const [resume, setResume] = useState<any | null>(null);
+  const [loadingAiContent, setLoadingAiContent] = useState(true);
+  const [messageApi, contextHolder] = message.useMessage();
 
   useEffect(() => {
-    const fetchPerson = async () => {
+    const fetchData = async () => {
       try {
         if (!personId) return;
-        const data = await api.getPerson(parseInt(personId));
-        setPerson(data);
+        setLoading(true);
+        setLoadingAiContent(true);
+        
+        // 获取人物基本信息
+        const personData = await api.getPerson(parseInt(personId));
+        setPerson(personData);
+        
+        // 获取AI生成的内容
+        try {
+          const biographyContent = await api.getPersonAiContent(parseInt(personId), 'biography');
+          if (biographyContent && biographyContent.content) {
+            setBiography(biographyContent.content);
+          }
+        } catch (error) {
+          console.error('获取传记内容失败:', error);
+        }
+        
+        try {
+          const resumeContent = await api.getPersonAiContent(parseInt(personId), 'resume');
+          if (resumeContent && resumeContent.content) {
+            try {
+              // 尝试解析简历内容
+              let parsedContent: any = resumeContent.content;
+              
+              // 如果内容是字符串，尝试解析JSON
+              if (typeof parsedContent === 'string') {
+                try {
+                  parsedContent = JSON.parse(parsedContent) as ResumeData;
+                } catch (e) {
+                  console.error('第一次JSON解析失败:', e);
+                  // 尝试清理字符串并重新解析
+                  const cleanedContent = parsedContent.replace(/[\u0000-\u001F\u007F-\u009F]/g, '');
+                  try {
+                    parsedContent = JSON.parse(cleanedContent) as ResumeData;
+                  } catch (e2) {
+                    console.error('清理后JSON解析仍然失败:', e2);
+                    throw new Error('无法解析简历JSON数据');
+                  }
+                }
+              }
+              
+              // 如果解析后的内容仍然包含content字段，可能是嵌套的JSON
+              if (parsedContent && typeof parsedContent === 'object' && 'content' in parsedContent) {
+                if (typeof parsedContent.content === 'string') {
+                  try {
+                    parsedContent = JSON.parse(parsedContent.content) as ResumeData;
+                  } catch (e) {
+                    console.error('解析嵌套content字段失败:', e);
+                    throw new Error('无法解析嵌套的简历数据');
+                  }
+                } else {
+                  parsedContent = parsedContent.content as ResumeData;
+                }
+              }
+              
+              // 验证简历数据结构
+              const requiredFields = [
+                'modern_title',
+                'personal_branding',
+                'core_competencies',
+                'career_highlights',
+                'modern_achievements',
+                'leadership_style',
+                'personal_interests',
+                'easter_eggs'
+              ] as const;
+              
+              const missingFields = requiredFields.filter(field => !parsedContent[field]);
+              if (missingFields.length > 0) {
+                console.error('简历数据缺少必要字段:', missingFields);
+                throw new Error(`简历数据缺少必要字段: ${missingFields.join(', ')}`);
+              }
+              
+              // 验证数组字段
+              const arrayFields = [
+                'core_competencies',
+                'career_highlights',
+                'modern_achievements',
+                'personal_interests',
+                'easter_eggs'
+              ] as const;
+              
+              const invalidArrayFields = arrayFields.filter(field => !Array.isArray(parsedContent[field]));
+              if (invalidArrayFields.length > 0) {
+                console.error('简历数据包含非数组字段:', invalidArrayFields);
+                throw new Error(`简历数据包含非数组字段: ${invalidArrayFields.join(', ')}`);
+              }
+              
+              setResume(parsedContent as ResumeData);
+            } catch (parseError) {
+              console.error('解析简历数据失败:', parseError);
+              messageApi.error(parseError instanceof Error ? parseError.message : '解析简历数据失败，请重新生成');
+            }
+          }
+        } catch (error) {
+          console.error('获取简历内容失败:', error);
+        }
       } catch (error) {
-        message.error('获取历史人物信息失败');
+        messageApi.error('获取历史人物信息失败');
         console.error('Failed to fetch person:', error);
       } finally {
         setLoading(false);
+        setLoadingAiContent(false);
       }
     };
 
-    fetchPerson();
-  }, [personId]);
+    fetchData();
+  }, [personId, messageApi]);
 
   if (loading) {
     return <Spin size="large" style={{ display: 'flex', justifyContent: 'center', marginTop: 50 }} />;
@@ -57,6 +200,20 @@ export const PersonDetail: React.FC = () => {
       data: [],
       columns: [],
       visible: true
+    },
+    {
+      key: 'biography',
+      label: 'AI传记',
+      data: [],
+      columns: [],
+      visible: !!biography
+    },
+    {
+      key: 'resume',
+      label: 'AI简历',
+      data: [],
+      columns: [],
+      visible: !!resume
     },
     {
       key: 'alt_names',
@@ -153,7 +310,7 @@ export const PersonDetail: React.FC = () => {
   ];
 
   const renderBasicInfo = () => (
-    <Card bordered={false} style={{ boxShadow: 'none' }}>
+    <Card variant="outlined" style={{ boxShadow: 'none' }}>
       <Descriptions bordered column={2} size="middle">
         <Descriptions.Item label="姓名" span={2}>
           <Typography.Text strong style={{ fontSize: '18px' }}>{basic_info?.name_chn}</Typography.Text>
@@ -182,6 +339,34 @@ export const PersonDetail: React.FC = () => {
     </Card>
   );
 
+  const renderBiography = () => (
+    <Card bordered={false} style={{ boxShadow: 'none' }}>
+      <Paragraph style={{ whiteSpace: 'pre-wrap', fontSize: '16px', lineHeight: '1.8' }}>
+        {biography}
+      </Paragraph>
+    </Card>
+  );
+
+  const renderResume = () => (
+    <Card bordered={false} style={{ boxShadow: 'none' }}>
+      {loadingAiContent ? (
+        <div style={{ textAlign: 'center', padding: '40px' }}>
+          <Spin size="large" />
+          <Paragraph style={{ marginTop: '16px' }}>正在生成简历...</Paragraph>
+        </div>
+      ) : resume ? (
+        <ResumeRenderer data={resume} />
+      ) : (
+        <Alert
+          message="简历数据不可用"
+          description="简历数据不可用或格式不正确，请重新生成。"
+          type="warning"
+          showIcon
+        />
+      )}
+    </Card>
+  );
+
   const renderTable = (data: any[], columns: any[], key: string) => (
     <Table
       dataSource={data}
@@ -193,42 +378,49 @@ export const PersonDetail: React.FC = () => {
     />
   );
 
+  const tabItems = tabConfigs
+    .filter(config => config.visible)
+    .map(config => ({
+      key: config.key,
+      label: config.label,
+      children: config.key === 'basic' ? renderBasicInfo() : 
+                config.key === 'biography' ? renderBiography() :
+                config.key === 'resume' ? renderResume() :
+                renderTable(config.data, config.columns, config.key)
+    }));
+
   return (
-    <Layout style={{ minHeight: '100vh', padding: '24px' }}>
-      <Content>
-        <div style={{ marginBottom: '16px' }}>
-          <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/')} style={{ marginRight: '8px' }}>
-            返回首页
-          </Button>
-          <Button icon={<TeamOutlined />} onClick={() => navigate(`/person/${personId}/network`)} style={{ marginRight: '8px' }}>
-            查看社交网络
-          </Button>
-          <Button icon={<EnvironmentOutlined />} onClick={() => navigate(`/person/${personId}/map`)}>
-            查看活动轨迹
-          </Button>
-        </div>
-        <Card>
-          <Title level={2}>{person?.name_chn}</Title>
-          <Tabs 
-            defaultActiveKey="basic" 
-            size="large"
-            style={{ 
-              backgroundColor: 'white',
-              padding: '24px',
-              borderRadius: '8px',
-              boxShadow: '0 1px 2px 0 rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15)'
-            }}
-          >
-            {tabConfigs.map(config => (
-              config.visible && (
-                <Tabs.TabPane key={config.key} tab={config.label}>
-                  {config.key === 'basic' ? renderBasicInfo() : renderTable(config.data, config.columns, config.key)}
-                </Tabs.TabPane>
-              )
-            ))}
-          </Tabs>
-        </Card>
-      </Content>
-    </Layout>
+    <>
+      {contextHolder}
+      <Layout style={{ minHeight: '100vh', padding: '24px' }}>
+        <Content>
+          <div style={{ marginBottom: '16px' }}>
+            <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/')} style={{ marginRight: '8px' }}>
+              返回首页
+            </Button>
+            <Button icon={<TeamOutlined />} onClick={() => navigate(`/person/${personId}/network`)} style={{ marginRight: '8px' }}>
+              查看社交网络
+            </Button>
+            <Button icon={<EnvironmentOutlined />} onClick={() => navigate(`/person/${personId}/map`)}>
+              查看活动轨迹
+            </Button>
+          </div>
+          <Card>
+            <Title level={2}>{person?.basic_info?.name_chn}</Title>
+            <Tabs 
+              defaultActiveKey="basic" 
+              size="large"
+              items={tabItems}
+              style={{ 
+                backgroundColor: 'white',
+                padding: '24px',
+                borderRadius: '8px',
+                boxShadow: '0 1px 2px 0 rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15)'
+              }}
+            />
+          </Card>
+        </Content>
+      </Layout>
+    </>
   );
 }; 

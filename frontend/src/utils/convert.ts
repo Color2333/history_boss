@@ -35,14 +35,12 @@ const isArrayLike = (obj: any): boolean => {
 
 // 转换对象中的所有字符串属性为简体（用于显示）
 export const convertObjectToSimplified = <T extends Record<string, any>>(obj: T): T => {
-  console.log('Converting object:', obj);
   
   // 处理null或undefined
   if (obj === null || obj === undefined) return obj;
   
   // 处理数组
   if (Array.isArray(obj)) {
-    console.log('Converting array');
     return obj.map(item => {
       if (typeof item === 'string') {
         return convertToSimplified(item);
@@ -55,7 +53,6 @@ export const convertObjectToSimplified = <T extends Record<string, any>>(obj: T)
   
   // 处理类数组对象（如后端返回的带数字键的对象）
   if (isArrayLike(obj)) {
-    console.log('Converting array-like object');
     const arrayResult = [];
     for (let i = 0; i < Object.keys(obj).length; i++) {
       arrayResult.push(convertObjectToSimplified(obj[i]));
@@ -64,17 +61,14 @@ export const convertObjectToSimplified = <T extends Record<string, any>>(obj: T)
   }
   
   // 处理普通对象
-  console.log('Converting regular object');
   const result = { ...obj };
   
   // 特殊处理 basic_info 对象
   const basicInfo = (result as any).basic_info;
   if (basicInfo && typeof basicInfo === 'object') {
-    console.log('Processing basic_info object');
     const convertedBasicInfo = { ...basicInfo };
     for (const key in convertedBasicInfo) {
       if (typeof convertedBasicInfo[key] === 'string' && /[\u4e00-\u9fa5]/.test(convertedBasicInfo[key])) {
-        console.log(`Converting Chinese string in basic_info: ${key} = ${convertedBasicInfo[key]}`);
         convertedBasicInfo[key] = convertToSimplified(convertedBasicInfo[key]);
       }
     }
@@ -85,15 +79,12 @@ export const convertObjectToSimplified = <T extends Record<string, any>>(obj: T)
   for (const key in result) {
     if (key === 'basic_info') continue; // 跳过已处理的 basic_info
     
-    console.log(`Processing key: ${key}`, result[key]);
     if (typeof result[key] === 'string') {
       // 只转换中文字符串
       if (/[\u4e00-\u9fa5]/.test(result[key])) {
-        console.log(`Converting Chinese string: ${result[key]}`);
         (result[key] as string) = convertToSimplified(result[key]);
       }
     } else if (Array.isArray(result[key])) {
-      console.log(`Converting array at key: ${key}`);
       result[key] = result[key].map((item: any) => {
         if (typeof item === 'string') {
           // 只转换中文字符串
@@ -107,11 +98,9 @@ export const convertObjectToSimplified = <T extends Record<string, any>>(obj: T)
         return item;
       });
     } else if (typeof result[key] === 'object' && result[key] !== null) {
-      console.log(`Converting nested object at key: ${key}`);
       result[key] = convertObjectToSimplified(result[key]);
     }
   }
   
-  console.log('Converted result:', result);
   return result;
 };

@@ -1,260 +1,352 @@
 import React, { useState, useEffect } from 'react';
-import { Layout, Tabs, Typography, Card, Table, Spin, Empty, Input, Button, message, Row, Col, Select, Tag } from 'antd';
-import { SearchOutlined, UserOutlined } from '@ant-design/icons';
-import { Link } from 'react-router-dom';
+import { Layout, Input, Card, Row, Col, Typography, Button, Spin, message, Empty, Tabs, Tag } from 'antd';
+import { SearchOutlined, UserOutlined, HistoryOutlined, TeamOutlined, BookOutlined } from '@ant-design/icons';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
-import { Person, Dynasty, SearchParams } from '../types';
-import { convertToTraditional } from '../utils/convert';
+import { SearchForm } from '../components/SearchForm';
+import { SearchParams, SearchResult } from '../types';
+import './HomePage.css';
 
-const { Content } = Layout;
-const { Title } = Typography;
-const { Option } = Select;
+const { Header, Content, Footer } = Layout;
+const { Title, Paragraph } = Typography;
+const { Search } = Input;
+const { TabPane } = Tabs;
 
-export const HomePage: React.FC = () => {
-  // 状态管理
-  const [activeTab, setActiveTab] = useState('personList');
-  const [loading, setLoading] = useState(false);
-  const [persons, setPersons] = useState<Person[]>([]);
-  const [dynasties, setDynasties] = useState<Dynasty[]>([]);
-  const [totalPersons, setTotalPersons] = useState(0);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
-  
-  // 搜索条件
-  const [searchName, setSearchName] = useState('');
-  const [searchDynasty, setSearchDynasty] = useState<number | null>(null);
-  const [searchBirthYearFrom, setSearchBirthYearFrom] = useState<number | null>(null);
-  const [searchBirthYearTo, setSearchBirthYearTo] = useState<number | null>(null);
-
-  // 获取朝代列表
-  const fetchDynasties = async () => {
-    try {
-      const data = await api.getDynasties();
-      if (Array.isArray(data)) {
-        setDynasties(data);
-      } else {
-        console.error('getDynasties 返回值不是数组:', data);
-        setDynasties([]);
-      }
-    } catch (error) {
-      console.error('Failed to fetch dynasties:', error);
-      message.error('获取朝代列表失败');
-      setDynasties([]);
-    }
+interface ResumeContent {
+  modern_title: {
+    position: string;
+    company: string;
+    industry: string;
   };
+  personal_branding: {
+    tagline: string;
+    summary: string;
+  };
+  [key: string]: any;
+}
 
-  // 搜索历史人物
-  const searchPersons = async (page = 1, size = 10) => {
-    setLoading(true);
+interface ResumeCard {
+  id: number;
+  name: string;
+  dynasty: string;
+  modern_title: {
+    position: string;
+    company: string;
+    industry: string;
+  };
+  personal_branding: {
+    tagline: string;
+    summary: string;
+  };
+  content?: ResumeContent;
+}
+
+const HomePage: React.FC = () => {
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState<boolean>(false);
+  const [searchResults, setSearchResults] = useState<ResumeCard[]>([]);
+  const [recommendedResumes, setRecommendedResumes] = useState<ResumeCard[]>([]);
+  const [searchResult, setSearchResult] = useState<SearchResult>({
+    total: 0,
+    offset: 0,
+    limit: 20,
+    results: []
+  });
+  const [activeTab, setActiveTab] = useState<string>('resumes');
+
+  useEffect(() => {
+    fetchRecommendedResumes();
+  }, []);
+
+  const fetchRecommendedResumes = async () => {
     try {
-      const params: SearchParams = {
-        name: searchName ? convertToTraditional(searchName) : undefined,
-        dynasty_id: searchDynasty || undefined,
-        birth_year_from: searchBirthYearFrom || undefined,
-        birth_year_to: searchBirthYearTo || undefined,
-        limit: size,
-        offset: (page - 1) * size
-      };
+      setLoading(true);
+      const response = await api.getRecommendedResumes();
+      console.log('Raw API response:', response);
       
-      const data = await api.searchPersons(params);
-      setPersons(data.results || []);
-      setTotalPersons(data.total || 0);
-      setCurrentPage(page);
-      setPageSize(size);
+      // 处理可能被包装在content字段中的简历数据
+      const processedResumes = await Promise.all(response.map(async (resume: any) => {
+        try {
+          // 首先获取人物基本信息
+          const personInfo = await api.getPerson(resume.id);
+          
+          // 如果resume.content是字符串，尝试解析它
+          let resumeContent = resume.content;
+          if (typeof resumeContent === 'string') {
+            try {
+              resumeContent = JSON.parse(resumeContent);
+            } catch (e) {
+              const cleanedContent = resumeContent
+                .replace(/^```json\s*/, '')
+                .replace(/\s*```$/, '')
+                .trim();
+              resumeContent = JSON.parse(cleanedContent);
+            }
+          }
+
+          // 如果解析后的内容有content字段，使用那个内容
+          if (resumeContent && resumeContent.content) {
+            resumeContent = resumeContent.content;
+          }
+
+          return {
+            id: resume.id,
+            name: personInfo.basic_info.name_chn || '未知姓名',
+            dynasty: personInfo.basic_info.dynasty || '未知朝代',
+            modern_title: resumeContent?.modern_title || resume.modern_title || {
+              position: '未知职位',
+              company: '未知公司',
+              industry: '未知行业'
+            },
+            personal_branding: resumeContent?.personal_branding || resume.personal_branding || {
+              tagline: '暂无标语',
+              summary: '暂无简介'
+            }
+          };
+        } catch (e) {
+          console.error('Error processing resume:', e);
+          return {
+            id: resume.id,
+            name: '解析错误',
+            dynasty: '未知朝代',
+            modern_title: {
+              position: '未知职位',
+              company: '未知公司',
+              industry: '未知行业'
+            },
+            personal_branding: {
+              tagline: '暂无标语',
+              summary: '暂无简介'
+            }
+          };
+        }
+      }));
+
+      // 去重，保留每个id的第一条记录
+      const uniqueResumes = processedResumes.reduce((acc: ResumeCard[], current: ResumeCard) => {
+        const x = acc.find(item => item.id === current.id);
+        if (!x) {
+          return acc.concat([current]);
+        } else {
+          return acc;
+        }
+      }, []);
+
+      console.log('Final processed resumes:', uniqueResumes);
+      setRecommendedResumes(uniqueResumes);
     } catch (error) {
-      console.error('Failed to search persons:', error);
-      message.error('搜索历史人物失败');
-      setPersons([]);
+      console.error('Error fetching recommended resumes:', error);
+      message.error('获取推荐简历失败');
     } finally {
       setLoading(false);
     }
   };
 
-  // 在组件加载时获取朝代列表
-  useEffect(() => {
-    fetchDynasties();
-    searchPersons();
-  }, []);
-
-  // 人物列表表格列定义
-  const columns = [
-    {
-      title: 'ID',
-      dataIndex: 'personid',
-      key: 'personid',
-      width: 80,
-    },
-    {
-      title: '姓名',
-      dataIndex: 'name_chn',
-      key: 'name_chn',
-      render: (text: string, record: Person) => (
-        <Link to={`/person/${record.personid}`}>{text}</Link>
-      ),
-    },
-    {
-      title: '朝代',
-      dataIndex: 'dynasty',
-      key: 'dynasty',
-    },
-    {
-      title: '性别',
-      dataIndex: 'gender',
-      key: 'gender',
-      width: 80,
-      render: (gender: string) => (
-        <Tag color={gender === '男' ? 'blue' : 'pink'}>{gender}</Tag>
-      ),
-    },
-    {
-      title: '出生年',
-      dataIndex: 'birth_year',
-      key: 'birth_year',
-      width: 100,
-    },
-    {
-      title: '死亡年',
-      dataIndex: 'death_year',
-      key: 'death_year',
-      width: 100,
-    },
-    {
-      title: '享年',
-      dataIndex: 'death_age',
-      key: 'death_age',
-      width: 80,
+  const handleSearch = async (value: string) => {
+    if (!value.trim()) {
+      message.warning('请输入搜索关键词');
+      return;
     }
-  ];
 
-  // 朝代列表表格列定义
-  const dynastyColumns = [
-    {
-      title: 'ID',
-      dataIndex: 'dynasty_id',
-      key: 'dynasty_id',
-      width: 80,
-    },
-    {
-      title: '朝代名称',
-      dataIndex: 'dynasty_chn',
-      key: 'dynasty_chn',
-    },
-    {
-      title: '开始年份',
-      dataIndex: 'start_year',
-      key: 'start_year',
-    },
-    {
-      title: '结束年份',
-      dataIndex: 'end_year',
-      key: 'end_year',
+    try {
+      setLoading(true);
+      // 使用API搜索历史人物
+      const result = await api.searchPersons({ name: value, limit: 20, offset: 0 });
+      setSearchResult(result);
+      
+      // 将搜索结果转换为ResumeCard格式
+      const resumeCards: ResumeCard[] = result.results.map((person: any) => ({
+        id: person.personid,
+        name: person.name_chn || person.name,
+        dynasty: person.dynasty || '未知朝代',
+        modern_title: {
+          position: '历史人物',
+          company: person.dynasty || '未知朝代',
+          industry: '历史'
+        },
+        personal_branding: {
+          tagline: `${person.birth_year || '?'} - ${person.death_year || '?'}`,
+          summary: `${person.name_chn || person.name}，${person.dynasty || '未知朝代'}人`
+        }
+      }));
+      
+      setSearchResults(resumeCards);
+      setActiveTab('search');
+    } catch (error) {
+      console.error('搜索失败:', error);
+      message.error('搜索失败，请稍后再试');
+    } finally {
+      setLoading(false);
     }
-  ];
+  };
 
-  // 渲染搜索表单
-  const renderSearchForm = () => (
-    <Card style={{ marginBottom: 16 }}>
-      <Row gutter={16}>
-        <Col span={6}>
-          <Input
-            placeholder="姓名"
-            value={searchName}
-            onChange={e => setSearchName(e.target.value)}
-            prefix={<UserOutlined />}
-          />
-        </Col>
-        <Col span={6}>
-          <Select
-            style={{ width: '100%' }}
-            placeholder="朝代"
-            allowClear
-            onChange={value => setSearchDynasty(value)}
-          >
-            {dynasties.map(dynasty => (
-              <Option key={dynasty.dynasty_id} value={dynasty.dynasty_id}>
-                {dynasty.dynasty_chn}
-              </Option>
-            ))}
-          </Select>
-        </Col>
-        <Col span={4}>
-          <Input
-            placeholder="出生年份从"
-            type="number"
-            onChange={e => setSearchBirthYearFrom(e.target.value ? Number(e.target.value) : null)}
-          />
-        </Col>
-        <Col span={4}>
-          <Input
-            placeholder="出生年份至"
-            type="number"
-            onChange={e => setSearchBirthYearTo(e.target.value ? Number(e.target.value) : null)}
-          />
-        </Col>
-        <Col span={4}>
-          <Button 
-            type="primary" 
-            icon={<SearchOutlined />}
-            onClick={() => searchPersons(1, pageSize)}
-          >
-            搜索
-          </Button>
-        </Col>
-      </Row>
-    </Card>
-  );
+  const handleAdvancedSearch = async (params: SearchParams) => {
+    try {
+      setLoading(true);
+      const result = await api.searchPersons(params);
+      setSearchResult(result);
+      
+      // 将搜索结果转换为ResumeCard格式
+      const resumeCards: ResumeCard[] = result.results.map((person: any) => ({
+        id: person.personid,
+        name: person.name_chn || person.name,
+        dynasty: person.dynasty || '未知朝代',
+        modern_title: {
+          position: '历史人物',
+          company: person.dynasty || '未知朝代',
+          industry: '历史'
+        },
+        personal_branding: {
+          tagline: `${person.birth_year || '?'} - ${person.death_year || '?'}`,
+          summary: `${person.name_chn || person.name}，${person.dynasty || '未知朝代'}人`
+        }
+      }));
+      
+      setSearchResults(resumeCards);
+      setActiveTab('search');
+    } catch (error) {
+      console.error('高级搜索失败:', error);
+      message.error('搜索失败，请稍后再试');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  // 渲染人物列表
-  const renderPersonList = () => (
-    <div>
-      {renderSearchForm()}
-      <Table
-        columns={columns}
-        dataSource={persons}
-        rowKey="personid"
-        loading={loading}
-        pagination={{
-          current: currentPage,
-          pageSize: pageSize,
-          total: totalPersons,
-          onChange: (page, pageSize) => searchPersons(page, pageSize || 10),
-        }}
-      />
-    </div>
-  );
+  const handlePageChange = async (page: number, pageSize: number) => {
+    const offset = (page - 1) * pageSize;
+    const params: SearchParams = {
+      ...searchResult,
+      offset,
+      limit: pageSize
+    };
+    await handleAdvancedSearch(params);
+  };
 
-  // 渲染朝代列表
-  const renderDynastyList = () => (
-    <Table
-      columns={dynastyColumns}
-      dataSource={dynasties}
-      rowKey="dynasty_id"
-      loading={loading}
-      pagination={false}
-    />
-  );
+  const renderResumeCard = (item: ResumeCard) => {
+    const title = typeof item.content === 'object' && item.content !== null
+      ? item.content.modern_title
+      : item.modern_title;
+    
+    const branding = typeof item.content === 'object' && item.content !== null
+      ? item.content.personal_branding
+      : item.personal_branding;
+    
+    return (
+      <Card
+        key={item.id}
+        hoverable
+        className="resume-card"
+        onClick={() => navigate(`/person/${item.id}`)}
+        style={{ height: '100%' }}
+      >
+        <div className="resume-card-content">
+          <div className="resume-card-header">
+            <h3 className="resume-name">{item.name}</h3>
+            <Tag color="blue" className="resume-dynasty">{item.dynasty}</Tag>
+          </div>
+          <div className="resume-card-body">
+            <p className="resume-title">{title.position}</p>
+            <p className="resume-company">{title.company}</p>
+            <p className="resume-tagline">{branding.tagline}</p>
+          </div>
+        </div>
+      </Card>
+    );
+  };
+
+  const renderResumeCards = (items: ResumeCard[]) => {
+    if (items.length === 0) {
+      return (
+        <Empty
+          image={Empty.PRESENTED_IMAGE_SIMPLE}
+          description="暂无简历数据"
+        />
+      );
+    }
+
+    return (
+      <div className="resume-grid">
+        {items.map(item => renderResumeCard(item))}
+      </div>
+    );
+  };
+
+  const renderSearchResults = () => {
+    if (searchResult.results.length === 0) {
+      return <Empty description="未找到匹配的历史人物" />;
+    }
+
+    return (
+      <>
+        <Title level={2}>搜索结果 ({searchResult.total})</Title>
+        {renderResumeCards(searchResults)}
+      </>
+    );
+  };
 
   return (
-    <Layout style={{ minHeight: '100vh', padding: '24px' }}>
-      <Content>
-        <Title level={2} style={{ marginBottom: '24px' }}>历史人物查询系统</Title>
-        <Tabs
-          activeKey={activeTab}
-          onChange={setActiveTab}
-          items={[
-            {
-              key: 'personList',
-              label: '人物列表',
-              children: renderPersonList()
-            },
-            {
-              key: 'dynastyList',
-              label: '朝代列表',
-              children: renderDynastyList()
-            }
-          ]}
-        />
+    <Layout className="home-layout">
+      <Header className="home-header">
+        <div className="header-content">
+          <div className="header-left">
+            <Title level={2} className="header-title">历史人物简历</Title>
+            <div className="header-tabs">
+              <Button 
+                type={activeTab === 'resumes' ? 'primary' : 'text'} 
+                onClick={() => setActiveTab('resumes')}
+                className="header-tab"
+              >
+                推荐简历
+              </Button>
+              <Button 
+                type={activeTab === 'advanced' ? 'primary' : 'text'} 
+                onClick={() => setActiveTab('advanced')}
+                className="header-tab"
+              >
+                高级搜索
+              </Button>
+            </div>
+          </div>
+          <Search
+            placeholder="搜索历史人物"
+            allowClear
+            enterButton={<SearchOutlined />}
+            size="large"
+            onSearch={handleSearch}
+            className="search-input"
+          />
+        </div>
+      </Header>
+      <Content className="home-content">
+        {activeTab === 'resumes' ? (
+          loading ? (
+            <div className="loading-container">
+              <Spin size="large" />
+              <Paragraph>正在加载推荐简历...</Paragraph>
+            </div>
+          ) : (
+            renderResumeCards(recommendedResumes)
+          )
+        ) : (
+          <div className="advanced-search-container">
+            <SearchForm onSearch={handleAdvancedSearch} />
+            {loading ? (
+              <div className="loading-container">
+                <Spin size="large" />
+                <Paragraph>正在搜索...</Paragraph>
+              </div>
+            ) : (
+              renderResumeCards(searchResults)
+            )}
+          </div>
+        )}
       </Content>
+
+      <Footer style={{ textAlign: 'center' }}>
+        历史人物简历库 ©{new Date().getFullYear()} Created with ❤️
+      </Footer>
     </Layout>
   );
 };
+
+export default HomePage;

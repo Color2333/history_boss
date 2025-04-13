@@ -1,0 +1,108 @@
+.resume-card {
+  margin-bottom: 24px;
+  border-radius: 8px;
+  box-shadow: 0 1px 2px 0 rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15);
+}
+
+.resume-card .ant-card-head {
+  border-bottom: 1px solid #f0f0f0;
+  padding: 16px 24px;
+}
+
+.resume-card .ant-card-body {
+  padding: 24px;
+}
+
+.resume-section {
+  margin-bottom: 32px;
+}
+
+.resume-section:last-child {
+  margin-bottom: 0;
+}
+
+.resume-section-title {
+  margin-bottom: 16px;
+  color: #1890ff;
+  font-size: 18px;
+  font-weight: 500;
+}
+
+.resume-section-title .anticon {
+  margin-right: 8px;
+}
+
+.resume-tag {
+  margin-right: 8px;
+  margin-bottom: 8px;
+}
+
+.resume-timeline {
+  margin-left: 16px;
+}
+
+.resume-timeline .ant-timeline-item-content {
+  margin-left: 32px;
+}
+
+.resume-timeline .ant-timeline-item-tail {
+  border-left: 2px solid #e8e8e8;
+}
+
+.resume-timeline .ant-timeline-item-head {
+  width: 12px;
+  height: 12px;
+  background-color: #1890ff;
+  border: 2px solid #fff;
+}
+
+.resume-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.resume-card-grid .ant-card {
+  height: 100%;
+}
+
+.resume-card-grid .ant-card-body {
+  padding: 16px;
+}
+
+.resume-card-grid .ant-typography {
+  margin-bottom: 8px;
+}
+
+.resume-card-grid .ant-typography:last-child {
+  margin-bottom: 0;
+}
+
+.resume-divider {
+  margin: 24px 0;
+}
+
+.resume-alert {
+  margin-bottom: 16px;
+}
+
+.resume-loading {
+  text-align: center;
+  padding: 40px;
+}
+
+.resume-loading .ant-spin {
+  margin-bottom: 16px;
+}
+
+.resume-error {
+  text-align: center;
+  padding: 40px;
+  color: #ff4d4f;
+}
+
+.resume-error .anticon {
+  font-size: 48px;
+  margin-bottom: 16px;
+} 

@@ -1,44 +1,46 @@
 import axios from 'axios';
 import { Person, Dynasty, SearchParams, SearchResult } from '../types';
 import { convertObjectToSimplified } from '../utils/convert';
+import { API_BASE_URL } from '../config';
+
+export interface ResumeCard {
+  id: number;
+  name: string;
+  dynasty: string;
+  modern_title: {
+    position: string;
+    company: string;
+    industry: string;
+  };
+  personal_branding: {
+    tagline: string;
+    summary: string;
+  };
+}
 
 export const api = {
   // 获取历史人物详情
   getPerson: async (personId: number): Promise<Person> => {
-    console.log('Fetching person with ID:', personId);
-    const response = await axios.get(`/api/person/${personId}`);
-    console.log('Raw API response:', response.data);
-    const convertedData = convertObjectToSimplified(response.data);
-    console.log('Converted data:', convertedData);
-    console.log('Basic info:', convertedData.basic_info);
-    return convertedData;
+    const response = await axios.get(`${API_BASE_URL}/api/person/${personId}`);
+    return convertObjectToSimplified(response.data);
   },
 
   // 搜索历史人物
   searchPersons: async (params: SearchParams): Promise<SearchResult> => {
-    console.log('Searching with params:', params);
-    const response = await axios.get(`/api/search`, { params });
-    console.log('Search response:', response.data);
+    const response = await axios.get(`${API_BASE_URL}/api/search`, { params });
     return convertObjectToSimplified(response.data);
   },
 
   // 获取所有朝代
   getDynasties: async (): Promise<Dynasty[]> => {
-    console.log('Fetching dynasties...');
-    const response = await axios.get(`/api/dynasties`);
-    console.log('Dynasties response:', response.data);
+    const response = await axios.get(`${API_BASE_URL}/api/dynasties`);
     return convertObjectToSimplified(response.data);
   },
 
+  // 获取人物活动
   async getPersonActivities(personId: number): Promise<any[]> {
-    console.log('Fetching activities for person ID:', personId);
-    const response = await fetch(`/api/person/${personId}/activities`);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch activities: ${response.status} ${response.statusText}`);
-    }
-    const data = await response.json();
-    console.log('Activities response:', data);
-    return data;
+    const response = await axios.get(`${API_BASE_URL}/api/person/${personId}/activities`);
+    return response.data;
   },
 
   // 获取 AI 生成的内容
@@ -47,11 +49,9 @@ export const api = {
     version: number;
     status: string;
   }> {
-    console.log(`Fetching ${contentType} for person ID:`, personId);
-    const response = await axios.get(`/api/person/${personId}/ai-content`, {
+    const response = await axios.get(`${API_BASE_URL}/api/person/${personId}/ai-content`, {
       params: { content_type: contentType }
     });
-    console.log(`${contentType} response:`, response.data);
     return response.data;
   },
 
@@ -64,14 +64,12 @@ export const api = {
     content: string;
     generation_id: number;
   }> {
-    console.log(`Generating ${contentType} for person ID:`, personId);
-    const response = await axios.post(`/api/person/${personId}/ai-content`, null, {
+    const response = await axios.post(`${API_BASE_URL}/api/person/${personId}/ai-content`, null, {
       params: { 
         content_type: contentType,
         force_regenerate: forceRegenerate
       }
     });
-    console.log(`Generated ${contentType} response:`, response.data);
     return response.data;
   },
 
@@ -81,10 +79,25 @@ export const api = {
     contentType: 'biography' | 'resume',
     content: string
   ): Promise<void> {
-    console.log(`Saving ${contentType} to boss DB for person ID:`, personId);
-    const response = await axios.post(`/api/person/${personId}/ai-content/save?content_type=${contentType}`, {
+    await axios.post(`${API_BASE_URL}/api/person/${personId}/ai-content/save?content_type=${contentType}`, {
       content: content
     });
-    console.log(`Save to boss DB response:`, response.data);
+  },
+
+  // 获取推荐的简历数据
+  getRecommendedResumes: async (): Promise<ResumeCard[]> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/recommended-resumes`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch recommended resumes');
+      }
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Error fetching recommended resumes:', error);
+      return [];
+    }
   }
 };
+
+export default api;
