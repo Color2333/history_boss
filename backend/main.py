@@ -1437,7 +1437,7 @@ async def get_recommended_resumes():
             FROM ai_resumes ar
             WHERE ar.status = 'published'
             ORDER BY ar.created_at DESC
-            LIMIT 8
+            LIMIT 16
         """
         
         logger.info("Attempting to fetch recommended resumes")

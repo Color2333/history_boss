@@ -1,89 +1,188 @@
+/* 全局样式 */
 .home-layout {
   min-height: 100vh;
-  background-color: #f5f5f5;
+  background-color: #f0f2f5;
 }
 
+/* 头部导航样式 */
 .home-header {
   background: #fff;
-  padding: 0 24px;
-  box-shadow: 0 1px 2px 0 rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15);
+  padding: 0;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
   position: sticky;
   top: 0;
   z-index: 100;
+  transition: box-shadow 0.3s ease;
+}
+
+.home-header:hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
 }
 
 .header-content {
   max-width: 1400px;
   margin: 0 auto;
+  padding: 0 24px;
+  height: 72px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 0;
-  height: 64px;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 48px;
 }
 
 .header-title {
   margin: 0 !important;
   color: #1890ff;
   font-size: 24px !important;
+  font-weight: 600 !important;
+  white-space: nowrap;
+  background: linear-gradient(120deg, #1890ff, #69c0ff);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.header-tabs {
+  display: flex;
+  gap: 12px;
+}
+
+.header-tab {
+  padding: 6px 20px;
+  font-size: 15px;
+  height: 36px;
+  border-radius: 18px;
+  transition: all 0.3s ease;
+}
+
+.header-tab:hover {
+  transform: translateY(-1px);
 }
 
 .search-input {
-  width: 500px;
+  width: 360px;
+  transition: width 0.3s ease;
 }
 
+.search-input:hover,
+.search-input:focus-within {
+  width: 400px;
+}
+
+/* 内容区域样式 */
 .home-content {
   max-width: 1400px;
   margin: 24px auto;
   padding: 0 24px;
+  min-height: calc(100vh - 180px);
 }
 
-.home-tabs {
+.advanced-search-container {
+  background: transparent;
+  padding: 0;
+  box-shadow: none;
+  margin-bottom: 24px;
+}
+
+.advanced-search-form {
   background: #fff;
   padding: 24px;
-  border-radius: 8px;
-  box-shadow: 0 1px 2px 0 rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15);
-  min-height: calc(100vh - 200px);
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  margin-bottom: 24px;
+  transition: box-shadow 0.3s ease;
+}
+
+.advanced-search-form:hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
 }
 
 .loading-container {
   text-align: center;
-  padding: 40px;
+  padding: 60px 0;
 }
 
+.loading-container .ant-spin {
+  margin-bottom: 24px;
+}
+
+.loading-container .ant-typography {
+  color: #8c8c8c;
+  font-size: 16px;
+}
+
+/* 简历网格样式 */
 .resume-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
-  gap: 24px;
+  column-count: 4;
+  column-gap: 24px;
   margin-top: 24px;
+  animation: fadeIn 0.5s ease;
 }
 
+.resume-grid-item {
+  break-inside: avoid;
+  margin-bottom: 24px;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 1600px) {
+  .resume-grid {
+    column-count: 3;
+  }
+}
+
+@media (max-width: 1200px) {
+  .resume-grid {
+    column-count: 2;
+  }
+}
+
+@media (max-width: 768px) {
+  .resume-grid {
+    column-count: 1;
+  }
+}
+
+/* 简历卡片样式 */
 .resume-card {
-  border-radius: 8px;
-  box-shadow: 0 1px 2px 0 rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15);
-  transition: all 0.3s ease;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
+  height: auto;
+  margin-bottom: 0;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border: none;
+  overflow: hidden;
 }
 
 .resume-card:hover {
   transform: translateY(-4px);
-  box-shadow: 0 4px 8px 0 rgba(60,64,67,0.3), 0 6px 12px 0 rgba(60,64,67,0.15);
+  box-shadow: 0 12px 24px rgba(0,0,0,0.08);
 }
 
 .resume-card-content {
   padding: 20px;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
 }
 
 .resume-card-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 16px;
+  margin-bottom: 20px;
   padding-bottom: 16px;
   border-bottom: 1px solid #f0f0f0;
 }
@@ -92,19 +191,28 @@
   margin: 0;
   font-size: 20px;
   font-weight: 600;
+  color: #262626;
+  transition: color 0.3s ease;
+}
+
+.resume-card:hover .resume-name {
   color: #1890ff;
 }
 
 .resume-dynasty {
   margin: 0;
   font-size: 14px;
-  padding: 4px 8px;
+  padding: 4px 12px;
+  border-radius: 4px;
+  background: #e6f7ff;
+  color: #1890ff;
+  border: none;
 }
 
 .resume-card-body {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
   flex: 1;
 }
 
@@ -112,48 +220,115 @@
   margin: 0;
   font-size: 18px;
   font-weight: 500;
-  color: #333;
+  color: #434343;
+  line-height: 1.4;
 }
 
 .resume-company {
   margin: 0;
-  font-size: 16px;
-  color: #666;
+  font-size: 15px;
+  color: #8c8c8c;
 }
 
 .resume-tagline {
-  margin: 0;
+  margin: 16px 0 0;
+  padding-top: 16px;
   font-size: 14px;
-  color: #999;
+  color: #8c8c8c;
   font-style: italic;
-  margin-top: auto;
-  padding-top: 12px;
   border-top: 1px solid #f0f0f0;
+  line-height: 1.6;
+}
+
+/* 页脚样式 */
+.home-footer {
+  text-align: center;
+  padding: 24px;
+  color: #8c8c8c;
+  background: transparent;
+}
+
+.home-footer span {
+  color: #ff4d4f;
+  margin: 0 4px;
 }
 
 /* 响应式布局 */
-@media (max-width: 1200px) {
+@media (max-width: 1400px) {
   .resume-grid {
-    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
   }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1200px) {
   .header-content {
-    flex-direction: column;
     height: auto;
-    padding: 16px;
+    padding: 16px 24px;
   }
 
-  .header-title {
-    margin-bottom: 16px !important;
+  .header-left {
+    gap: 24px;
   }
 
   .search-input {
+    width: 300px;
+  }
+
+  .search-input:hover,
+  .search-input:focus-within {
+    width: 340px;
+  }
+}
+
+@media (max-width: 900px) {
+  .header-content {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+  }
+
+  .header-left {
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .header-tabs {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .search-input,
+  .search-input:hover,
+  .search-input:focus-within {
     width: 100%;
   }
 
   .resume-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  }
+}
+
+@media (max-width: 480px) {
+  .header-content {
+    padding: 16px;
+  }
+
+  .home-content {
+    padding: 16px;
+    margin: 16px auto;
+  }
+
+  .advanced-search-container {
+    padding: 16px;
+  }
+
+  .resume-card-content {
+    padding: 16px;
+  }
+
+  .resume-grid {
+    gap: 16px;
+    margin-top: 16px;
   }
 } 

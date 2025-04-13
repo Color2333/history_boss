@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
 import { SearchForm } from '../components/SearchForm';
 import { SearchParams, SearchResult } from '../types';
+import { convertToTraditional } from '../utils/convert';
 import './HomePage.css';
 
 const { Header, Content, Footer } = Layout;
@@ -127,9 +128,9 @@ const HomePage: React.FC = () => {
         const x = acc.find(item => item.id === current.id);
         if (!x) {
           return acc.concat([current]);
-        } else {
+      } else {
           return acc;
-        }
+      }
       }, []);
 
       console.log('Final processed resumes:', uniqueResumes);
@@ -150,8 +151,10 @@ const HomePage: React.FC = () => {
 
     try {
       setLoading(true);
+      // 转换为繁体字进行搜索
+      const traditionalValue = await convertToTraditional(value);
       // 使用API搜索历史人物
-      const result = await api.searchPersons({ name: value, limit: 20, offset: 0 });
+      const result = await api.searchPersons({ name: traditionalValue, limit: 20, offset: 0 });
       setSearchResult(result);
       
       // 将搜索结果转换为ResumeCard格式
@@ -232,25 +235,26 @@ const HomePage: React.FC = () => {
       : item.personal_branding;
     
     return (
-      <Card
-        key={item.id}
-        hoverable
-        className="resume-card"
-        onClick={() => navigate(`/person/${item.id}`)}
-        style={{ height: '100%' }}
-      >
-        <div className="resume-card-content">
-          <div className="resume-card-header">
-            <h3 className="resume-name">{item.name}</h3>
-            <Tag color="blue" className="resume-dynasty">{item.dynasty}</Tag>
+      <div className="resume-grid-item">
+        <Card
+          key={item.id}
+          hoverable
+          className="resume-card"
+          onClick={() => navigate(`/person/${item.id}`)}
+        >
+          <div className="resume-card-content">
+            <div className="resume-card-header">
+              <h3 className="resume-name">{item.name}</h3>
+              <Tag color="blue" className="resume-dynasty">{item.dynasty}</Tag>
+            </div>
+            <div className="resume-card-body">
+              <p className="resume-title">{title.position}</p>
+              <p className="resume-company">{title.company}</p>
+              <p className="resume-tagline">{branding.tagline}</p>
+            </div>
           </div>
-          <div className="resume-card-body">
-            <p className="resume-title">{title.position}</p>
-            <p className="resume-company">{title.company}</p>
-            <p className="resume-tagline">{branding.tagline}</p>
-          </div>
-        </div>
-      </Card>
+    </Card>
+      </div>
     );
   };
 
@@ -267,8 +271,8 @@ const HomePage: React.FC = () => {
     return (
       <div className="resume-grid">
         {items.map(item => renderResumeCard(item))}
-      </div>
-    );
+    </div>
+  );
   };
 
   const renderSearchResults = () => {
@@ -295,6 +299,7 @@ const HomePage: React.FC = () => {
                 type={activeTab === 'resumes' ? 'primary' : 'text'} 
                 onClick={() => setActiveTab('resumes')}
                 className="header-tab"
+                icon={<BookOutlined />}
               >
                 推荐简历
               </Button>
@@ -302,6 +307,7 @@ const HomePage: React.FC = () => {
                 type={activeTab === 'advanced' ? 'primary' : 'text'} 
                 onClick={() => setActiveTab('advanced')}
                 className="header-tab"
+                icon={<SearchOutlined />}
               >
                 高级搜索
               </Button>
@@ -328,8 +334,10 @@ const HomePage: React.FC = () => {
             renderResumeCards(recommendedResumes)
           )
         ) : (
-          <div className="advanced-search-container">
-            <SearchForm onSearch={handleAdvancedSearch} />
+          <>
+            <div className="advanced-search-form">
+              <SearchForm onSearch={handleAdvancedSearch} />
+            </div>
             {loading ? (
               <div className="loading-container">
                 <Spin size="large" />
@@ -338,12 +346,11 @@ const HomePage: React.FC = () => {
             ) : (
               renderResumeCards(searchResults)
             )}
-          </div>
+          </>
         )}
       </Content>
-
-      <Footer style={{ textAlign: 'center' }}>
-        历史人物简历库 ©{new Date().getFullYear()} Created with ❤️
+      <Footer className="home-footer">
+        历史人物简历库 ©{new Date().getFullYear()} Created with <span>❤️</span>
       </Footer>
     </Layout>
   );
