@@ -261,19 +261,23 @@ def get_person_by_id(person_id: int):
             conn.close()
             raise HTTPException(status_code=404, detail=f"未找到ID为{person_id}的人物")
             
+        # 将 sqlite3.Row 对象转换为普通字典
+        basic_info_dict = dict(basic_info)
+            
         result["basic_info"] = {
-            "personid": basic_info["c_personid"],
-            "name": basic_info["c_name"],
-            "name_chn": basic_info["c_name_chn"],
-            "dynasty": basic_info["c_dynasty_chn"],
-            "dynasty_id": basic_info["c_dy"],
-            "gender": "女" if basic_info["c_female"] == 1 else "男",
-            "birth_year": basic_info["c_birthyear"],
-            "death_year": basic_info["c_deathyear"],
-            "death_age": basic_info["c_death_age"],
-            "index_year": basic_info["c_index_year"],
-            "surname": basic_info["c_surname_chn"],
-            "mingzi": basic_info["c_mingzi_chn"]
+            "personid": basic_info_dict.get("c_personid"),
+            "name": basic_info_dict.get("c_name", ""),
+            "name_chn": basic_info_dict.get("c_name_chn", ""),
+            "dynasty": basic_info_dict.get("c_dynasty_chn", "未知"),
+            "dynasty_id": basic_info_dict.get("c_dy"),
+            "gender": "女" if basic_info_dict.get("c_female") == 1 else "男",
+            "birth_year": basic_info_dict.get("c_birthyear"),
+            "death_year": basic_info_dict.get("c_deathyear"),
+            "death_age": basic_info_dict.get("c_death_age"),
+            "index_year": basic_info_dict.get("c_index_year"),
+            "surname": basic_info_dict.get("c_surname_chn", ""),
+            "mingzi": basic_info_dict.get("c_mingzi_chn", ""),
+            "notes": basic_info_dict.get("c_notes")
         }
         
         # 2. 获取别名信息
@@ -288,10 +292,11 @@ def get_person_by_id(person_id: int):
         ).fetchall()
         
         result["alt_names"] = [{
-            "alt_name": row["c_alt_name"],
-            "alt_name_chn": row["c_alt_name_chn"],
-            "type": row["c_name_type_desc_chn"],
-            "type_code": row["c_alt_name_type_code"]
+            "alt_name": dict(row).get("c_alt_name", ""),
+            "alt_name_chn": dict(row).get("c_alt_name_chn", ""),
+            "type": dict(row).get("c_name_type_desc_chn", "未知"),
+            "type_code": dict(row).get("c_alt_name_type_code"),
+            "notes": dict(row).get("c_notes")
         } for row in alt_names]
         
         # 3. 获取亲属关系
@@ -307,10 +312,11 @@ def get_person_by_id(person_id: int):
         ).fetchall()
         
         result["kin_relations"] = [{
-            "kin_id": row["c_kin_id"],
-            "kin_name": row["c_kin_name_chn"],
-            "relation": row["c_kinrel_chn"],
-            "relation_code": row["c_kin_code"]
+            "kin_id": dict(row).get("c_kin_id"),
+            "kin_name": dict(row).get("c_kin_name_chn", "未知"),
+            "relation": dict(row).get("c_kinrel_chn", "未知"),
+            "relation_code": dict(row).get("c_kin_code"),
+            "notes": dict(row).get("c_notes")
         } for row in kin_relations]
         
         # 4. 获取社会关系
@@ -326,11 +332,12 @@ def get_person_by_id(person_id: int):
         ).fetchall()
         
         result["social_relations"] = [{
-            "assoc_id": row["c_assoc_id"],
-            "assoc_name": row["c_assoc_name_chn"],
-            "relation": row["c_assoc_desc_chn"],
-            "relation_code": row["c_assoc_code"],
-            "year": row["c_assoc_year"]
+            "assoc_id": dict(row).get("c_assoc_id"),
+            "assoc_name": dict(row).get("c_assoc_name_chn", "未知"),
+            "relation": dict(row).get("c_assoc_desc_chn", "未知"),
+            "relation_code": dict(row).get("c_assoc_code"),
+            "year": dict(row).get("c_year"),
+            "notes": dict(row).get("c_notes")
         } for row in social_relations]
         
         # 5. 获取地址信息
@@ -346,12 +353,13 @@ def get_person_by_id(person_id: int):
         ).fetchall()
         
         result["addresses"] = [{
-            "addr_id": row["c_addr_id"],
-            "addr_name": row["c_addr_name_chn"],
-            "addr_type": row["c_addr_desc_chn"],
-            "addr_type_code": row["c_addr_type"],
-            "first_year": row["c_firstyear"],
-            "last_year": row["c_lastyear"]
+            "addr_id": dict(row).get("c_addr_id"),
+            "addr_name": dict(row).get("c_addr_name_chn", "未知"),
+            "addr_type": dict(row).get("c_addr_desc_chn", "未知"),
+            "addr_type_code": dict(row).get("c_addr_type"),
+            "first_year": dict(row).get("c_firstyear"),
+            "last_year": dict(row).get("c_lastyear"),
+            "notes": dict(row).get("c_notes")
         } for row in addresses]
         
         # 6. 获取官职信息
@@ -368,12 +376,13 @@ def get_person_by_id(person_id: int):
         ).fetchall()
         
         result["offices"] = [{
-            "office_id": row["c_office_id"],
-            "office_name": row["c_office_chn"],
-            "first_year": row["c_firstyear"],
-            "last_year": row["c_lastyear"],
-            "appointment_type": row["c_appt_type_desc_chn"],
-            "assume_office": row["c_assume_office_desc_chn"]
+            "office_id": dict(row).get("c_office_id"),
+            "office_name": dict(row).get("c_office_chn", "未知"),
+            "first_year": dict(row).get("c_firstyear"),
+            "last_year": dict(row).get("c_lastyear"),
+            "appointment_type": dict(row).get("c_appt_type_desc_chn", "未知"),
+            "assume_office": dict(row).get("c_assume_office_desc_chn", "未知"),
+            "notes": dict(row).get("c_notes")
         } for row in offices]
         
         # 7. 获取入仕信息
@@ -388,12 +397,13 @@ def get_person_by_id(person_id: int):
         ).fetchall()
         
         result["entries"] = [{
-            "entry_code": row["c_entry_code"],
-            "entry_desc": row["c_entry_desc_chn"],
-            "year": row["c_year"],
-            "age": row["c_age"],
-            "attempt_count": row["c_attempt_count"],
-            "exam_rank": row["c_exam_rank"]
+            "entry_code": dict(row).get("c_entry_code"),
+            "entry_desc": dict(row).get("c_entry_desc_chn", "未知"),
+            "year": dict(row).get("c_year"),
+            "age": dict(row).get("c_age"),
+            "attempt_count": dict(row).get("c_attempt_count"),
+            "exam_rank": dict(row).get("c_exam_rank"),
+            "notes": dict(row).get("c_notes")
         } for row in entries]
         
         # 8. 获取社会地位
@@ -408,11 +418,12 @@ def get_person_by_id(person_id: int):
         ).fetchall()
         
         result["statuses"] = [{
-            "status_code": row["c_status_code"],
-            "status_desc": row["c_status_desc_chn"],
-            "first_year": row["c_firstyear"],
-            "last_year": row["c_lastyear"],
-            "supplement": row["c_supplement"]
+            "status_code": dict(row).get("c_status_code"),
+            "status_desc": dict(row).get("c_status_desc_chn", "未知"),
+            "first_year": dict(row).get("c_firstyear"),
+            "last_year": dict(row).get("c_lastyear"),
+            "supplement": dict(row).get("c_supplement"),
+            "notes": dict(row).get("c_notes")
         } for row in statuses]
         
         # 9. 获取著作信息
@@ -428,17 +439,26 @@ def get_person_by_id(person_id: int):
         ).fetchall()
         
         result["texts"] = [{
-            "text_id": row["c_textid"],
-            "title": row["c_title_chn"],
-            "role": row["c_role_desc_chn"],
-            "year": row["c_year"]
+            "text_id": dict(row).get("c_textid"),
+            "title": dict(row).get("c_title_chn", "未知"),
+            "role": dict(row).get("c_role_desc_chn", "未知"),
+            "year": dict(row).get("c_year"),
+            "notes": dict(row).get("c_notes")
         } for row in texts]
         
         conn.close()
         return result
     
+    except sqlite3.Error as e:
+        print(f"数据库错误: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"数据库查询失败: {str(e)}")
     except Exception as e:
+        print(f"查询失败: {str(e)}")
+        print(f"错误类型: {type(e)}")
         raise HTTPException(status_code=500, detail=f"查询失败: {str(e)}")
+    finally:
+        if 'conn' in locals():
+            conn.close()
 
 @app.get("/api/search")
 def search_persons(

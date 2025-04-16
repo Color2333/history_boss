@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Layout, Typography, Card, Table, Button, Spin, message, Descriptions, Tag, Tabs, Alert } from 'antd';
 import { ArrowLeftOutlined, TeamOutlined, EnvironmentOutlined } from '@ant-design/icons';
 import { api } from '../services/api';
-import { Person } from '../types';
+import { Person, PersonBasicInfo } from '../types';
 import { ResumeRenderer } from '../components/ResumeRenderer';
 
 const { Content } = Layout;
@@ -221,7 +221,8 @@ export const PersonDetail: React.FC = () => {
       data: alt_names,
       columns: [
         { title: '别名', dataIndex: 'alt_name_chn', key: 'alt_name_chn' },
-        { title: '类型', dataIndex: 'type', key: 'type' }
+        { title: '类型', dataIndex: 'type', key: 'type' },
+        { title: '备注', dataIndex: 'notes', key: 'notes', render: (text: string) => text || '-' }
       ],
       visible: alt_names.length > 0
     },
@@ -231,7 +232,8 @@ export const PersonDetail: React.FC = () => {
       data: kin_relations,
       columns: [
         { title: '亲属姓名', dataIndex: 'kin_name', key: 'kin_name' },
-        { title: '关系', dataIndex: 'relation', key: 'relation' }
+        { title: '关系', dataIndex: 'relation', key: 'relation' },
+        { title: '备注', dataIndex: 'notes', key: 'notes', render: (text: string) => text || '-' }
       ],
       visible: kin_relations.length > 0
     },
@@ -242,7 +244,8 @@ export const PersonDetail: React.FC = () => {
       columns: [
         { title: '关联人物', dataIndex: 'assoc_name', key: 'assoc_name' },
         { title: '关系', dataIndex: 'relation', key: 'relation' },
-        { title: '年份', dataIndex: 'year', key: 'year' }
+        { title: '年份', dataIndex: 'year', key: 'year' },
+        { title: '备注', dataIndex: 'notes', key: 'notes', render: (text: string) => text || '-' }
       ],
       visible: social_relations.length > 0
     },
@@ -254,7 +257,8 @@ export const PersonDetail: React.FC = () => {
         { title: '地址', dataIndex: 'addr_name', key: 'addr_name' },
         { title: '类型', dataIndex: 'addr_type', key: 'addr_type' },
         { title: '起始年份', dataIndex: 'first_year', key: 'first_year' },
-        { title: '结束年份', dataIndex: 'last_year', key: 'last_year' }
+        { title: '结束年份', dataIndex: 'last_year', key: 'last_year' },
+        { title: '备注', dataIndex: 'notes', key: 'notes', render: (text: string) => text || '-' }
       ],
       visible: addresses.length > 0
     },
@@ -267,7 +271,8 @@ export const PersonDetail: React.FC = () => {
         { title: '任命类型', dataIndex: 'appointment_type', key: 'appointment_type' },
         { title: '任职方式', dataIndex: 'assume_office', key: 'assume_office' },
         { title: '起始年份', dataIndex: 'first_year', key: 'first_year' },
-        { title: '结束年份', dataIndex: 'last_year', key: 'last_year' }
+        { title: '结束年份', dataIndex: 'last_year', key: 'last_year' },
+        { title: '备注', dataIndex: 'notes', key: 'notes', render: (text: string) => text || '-' }
       ],
       visible: offices.length > 0
     },
@@ -280,7 +285,8 @@ export const PersonDetail: React.FC = () => {
         { title: '年份', dataIndex: 'year', key: 'year' },
         { title: '年龄', dataIndex: 'age', key: 'age' },
         { title: '尝试次数', dataIndex: 'attempt_count', key: 'attempt_count' },
-        { title: '考试排名', dataIndex: 'exam_rank', key: 'exam_rank' }
+        { title: '考试排名', dataIndex: 'exam_rank', key: 'exam_rank' },
+        { title: '备注', dataIndex: 'notes', key: 'notes', render: (text: string) => text || '-' }
       ],
       visible: entries.length > 0
     },
@@ -292,7 +298,8 @@ export const PersonDetail: React.FC = () => {
         { title: '地位', dataIndex: 'status_desc', key: 'status_desc' },
         { title: '起始年份', dataIndex: 'first_year', key: 'first_year' },
         { title: '结束年份', dataIndex: 'last_year', key: 'last_year' },
-        { title: '补充说明', dataIndex: 'supplement', key: 'supplement' }
+        { title: '补充说明', dataIndex: 'supplement', key: 'supplement' },
+        { title: '备注', dataIndex: 'notes', key: 'notes', render: (text: string) => text || '-' }
       ],
       visible: statuses.length > 0
     },
@@ -303,7 +310,8 @@ export const PersonDetail: React.FC = () => {
       columns: [
         { title: '著作名称', dataIndex: 'title', key: 'title' },
         { title: '角色', dataIndex: 'role', key: 'role' },
-        { title: '年份', dataIndex: 'year', key: 'year' }
+        { title: '年份', dataIndex: 'year', key: 'year' },
+        { title: '备注', dataIndex: 'notes', key: 'notes', render: (text: string) => text || '-' }
       ],
       visible: texts.length > 0
     }
@@ -334,6 +342,9 @@ export const PersonDetail: React.FC = () => {
         )}
         {basic_info?.index_year && (
           <Descriptions.Item label="索引年份">{basic_info.index_year}年</Descriptions.Item>
+        )}
+        {basic_info?.notes && (
+          <Descriptions.Item label="备注" span={2}>{basic_info.notes}</Descriptions.Item>
         )}
       </Descriptions>
     </Card>

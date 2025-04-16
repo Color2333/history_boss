@@ -11,6 +11,7 @@ export interface PersonBasicInfo {
   index_year: number | null;
   surname: string;
   mingzi: string;
+  notes?: string;
 }
 
 export interface AltName {
