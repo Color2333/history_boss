@@ -10,12 +10,20 @@ from pydantic_settings import BaseSettings
 from pydantic import BaseModel
 import aiosqlite
 import logging
+from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
 
+# 加载环境变量
+load_dotenv()
+
 class Settings(BaseSettings):
-    OPENAI_API_KEY: str = "sk-q9H8wqyhhHxcut658fFfE242Db5b4071B653E5Af3e61FfE3"
-    OPENAI_API_BASE: str = "https://api.oaipro.com"
+    # 从环境变量中获取API密钥，如果不存在则使用空字符串
+    OPENAI_API_KEY: str = os.environ.get("OPENAI_API_KEY", "")
+    OPENAI_API_BASE: str = os.environ.get("OPENAI_API_BASE", "https://api.oaipro.com")
+    
+    class Config:
+        env_file = ".env"  # 指定.env文件路径
 
 class ContentSaveRequest(BaseModel):
     content: str
@@ -38,9 +46,9 @@ DB_PATH = "data/data.db"
 BOSS_DB_PATH = "data/boss.db"
 
 # API 配置
-OAIPRO_API_BASE = "https://api.oaipro.com"
-OAIPRO_API_KEY = "sk-q9H8wqyhhHxcut658fFfE242Db5b4071B653E5Af3e61FfE3"
-MODEL_NAME = "gpt-4-turbo"  # 使用最新的Claude 3.5 Sonnet模型
+OAIPRO_API_BASE = settings.OPENAI_API_BASE
+OAIPRO_API_KEY = settings.OPENAI_API_KEY
+MODEL_NAME = os.environ.get("MODEL_NAME", "gpt-4-turbo")  # 从环境变量获取模型名称
 
 # 创建 httpx 客户端
 async_client = httpx.AsyncClient(
